@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Space Impostors</title>
+  <style>
+    :root { --ink:#eef7ff; --cyan:#57e6df; --red:#ff4d67; --panel:rgba(10,21,38,.94); }
+    * { box-sizing:border-box; }
+    html,body { margin:0; width:100%; height:100%; overflow:hidden; background:#07101d; color:var(--ink); font-family:Inter,system-ui,-apple-system,sans-serif; }
+    canvas { display:block; width:100%; height:100%; }
+    #hud { position:fixed; inset:0; pointer-events:none; }
+    .top-left { position:absolute; left:max(16px,env(safe-area-inset-left)); top:max(14px,env(safe-area-inset-top)); display:flex; gap:9px; align-items:flex-start; }
+    .brand { width:43px; height:43px; border-radius:12px; background:linear-gradient(145deg,#1bc3b9,#08747c); display:grid; place-items:center; box-shadow:0 8px 30px #0008; border:1px solid #72fff4aa; }
+    .brand svg { width:29px; }
+    .status { background:var(--panel); border:1px solid #ffffff18; border-radius:12px; padding:8px 12px; min-width:230px; backdrop-filter:blur(10px); box-shadow:0 8px 24px #0005; }
+    .status-row { display:flex; justify-content:space-between; gap:14px; font-size:11px; text-transform:uppercase; letter-spacing:1.2px; color:#91a5b9; }
+    .status-row b { color:white; }
+    .bar { height:5px; border-radius:99px; background:#26384a; margin-top:7px; overflow:hidden; }
+    .bar i { display:block; height:100%; width:0%; background:linear-gradient(90deg,#58e6dc,#a0fff7); transition:.25s; }
+    .role { position:absolute; left:50%; top:max(15px,env(safe-area-inset-top)); transform:translateX(-50%); padding:7px 15px; border-radius:99px; background:#0c1a29bb; border:1px solid #ffffff18; font-size:12px; font-weight:800; letter-spacing:1.2px; }
+    .role span { color:#57e6df; }
+    .role.imposter span { color:#ff6578; }
+    .minimap { position:absolute; right:max(16px,env(safe-area-inset-right)); top:max(14px,env(safe-area-inset-top)); width:148px; height:148px; border-radius:50%; background:#07131fd9; border:1px solid #8dc9d133; box-shadow:0 8px 30px #0007; overflow:hidden; }
+    .action-stack { position:absolute; right:max(20px,env(safe-area-inset-right)); bottom:max(20px,env(safe-area-inset-bottom)); display:flex; gap:10px; pointer-events:auto; }
+    .round-btn { width:72px; height:72px; border-radius:50%; border:2px solid #ffffff55; color:white; background:linear-gradient(145deg,#27394b,#111e2b); box-shadow:0 10px 24px #0008,inset 0 1px #ffffff22; font-weight:900; letter-spacing:.5px; display:grid; place-content:center; text-align:center; font-size:10px; line-height:13px; touch-action:none; }
+    .round-btn.primary { background:linear-gradient(145deg,#ff667b,#ba263d); border-color:#ffb1ba; }
+    .round-btn:active { transform:scale(.94); }
+    .round-btn:disabled { filter:grayscale(1); opacity:.45; }
+    #joystick { position:absolute; left:max(24px,env(safe-area-inset-left)); bottom:max(24px,env(safe-area-inset-bottom)); width:110px; height:110px; border-radius:50%; background:#07131b66; border:1px solid #aeeeff24; pointer-events:auto; touch-action:none; }
+    #stick { position:absolute; width:48px; height:48px; left:31px; top:31px; border-radius:50%; background:#c7e4eb33; border:2px solid #dcfaff77; box-shadow:0 4px 16px #0005; }
+    #modal { position:fixed; inset:0; z-index:20; display:none; place-items:center; background:#020713bb; backdrop-filter:blur(8px); }
+    #modal.show { display:grid; }
+    .card { width:min(420px,calc(100vw - 32px)); background:linear-gradient(145deg,#17283a,#0b1625); border:1px solid #ffffff22; border-radius:18px; padding:22px; box-shadow:0 24px 80px #000b; text-align:center; }
+    .card h1 { margin:3px 0 8px; font-size:28px; }
+    .card p { color:#adc0ce; margin:0 0 18px; }
+    .card button { border:0; border-radius:10px; background:#58ded4; color:#09202a; font-weight:900; padding:12px 18px; pointer-events:auto; }
+    #taskPrompt { position:absolute; left:50%; bottom:max(145px,calc(env(safe-area-inset-bottom) + 145px)); transform:translateX(-50%); background:#07131fe8; border:1px solid #72d9d0; border-radius:10px; padding:9px 13px; opacity:0; transition:.2s; font-size:12px; }
+    #taskPrompt.show { opacity:1; }
+    @media(max-width:700px) { .minimap{width:104px;height:104px}.status{min-width:170px}.status-row{font-size:9px}.round-btn{width:62px;height:62px}.brand{display:none}.role{top:70px} }
+  </style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <div id="hud">
+    <div class="top-left">
+      <div class="brand"><svg viewBox="0 0 64 64"><path d="M17 18c0-9 7-15 16-15s16 6 16 15v16c0 10-7 17-16 17S17 44 17 34V18Z" fill="#dffaff"/><path d="M17 29c-8 0-12 5-12 12 0 8 6 12 13 12h1V29Z" fill="#bfe6e9"/><ellipse cx="35" cy="19" rx="11" ry="7" fill="#78c1d1"/><ellipse cx="35" cy="18" rx="6" ry="3" fill="#aee9ef"/></svg></div>
+      <div class="status"><div class="status-row"><span>Tasks</span><b id="taskText">0 / 5</b></div><div class="bar"><i id="taskBar"></i></div></div>
+    </div>
+    <div id="role" class="role">ROLE <span>CREWMATE</span></div>
+    <canvas id="map" class="minimap" width="300" height="300"></canvas>
+    <div id="taskPrompt">Press E to complete task</div>
+    <div id="joystick"><div id="stick"></div></div>
+    <div class="action-stack">
+      <button id="taskBtn" class="round-btn primary">DO<br>TASK</button>
+      <button id="killBtn" class="round-btn">KILL</button>
+      <button id="reportBtn" class="round-btn">REPORT</button>
+    </div>
+  </div>
+  <div id="modal"><div class="card"><h1 id="modalTitle">Victory!</h1><p id="modalText">The crew completed their mission.</p><button id="again">PLAY AGAIN</button></div></div>
+<script>
+const canvas=document.getElementById('game'), ctx=canvas.getContext('2d');
+const map=document.getElementById('map'), mctx=map.getContext('2d');
+let W,H,DPR;
+function resize(){ DPR=Math.min(devicePixelRatio||1,2); W=innerWidth;H=innerHeight;canvas.width=W*DPR;canvas.height=H*DPR;ctx.setTransform(DPR,0,0,DPR,0,0); } addEventListener('resize',resize);resize();
+const rooms=[
+ {name:'CARGO',x:.10,y:.19,w:.19,h:.20,c:'#1b3a4c'}, {name:'SECURITY',x:.33,y:.13,w:.18,h:.18,c:'#203747'},
+ {name:'MEDBAY',x:.56,y:.16,w:.18,h:.20,c:'#2a3c4a'}, {name:'ENGINES',x:.79,y:.20,w:.15,h:.28,c:'#26394a'},
+ {name:'CAFETERIA',x:.31,y:.42,w:.38,h:.23,c:'#1b3b48'}, {name:'WEAPONS',x:.10,y:.55,w:.17,h:.22,c:'#26394a'},
+ {name:'ADMIN',x:.51,y:.70,w:.20,h:.17,c:'#203747'}, {name:'NAVIGATION',x:.74,y:.67,w:.20,h:.20,c:'#1b3a4c'}
+];
+const walls=[{x:.28,y:.19,w:.04,h:.19},{x:.52,y:.31,w:.04,h:.13},{x:.31,y:.38,w:.38,h:.03},{x:.27,y:.54,w:.04,h:.23},{x:.72,y:.54,w:.05,h:.13},{x:.70,y:.38,w:.09,h:.03}];
+let player,botList,impostor,camera={x:0,y:0},tasks,killCooldown,won=false,keys={};
+function reset(){
+  player={x:.43,y:.53,r:13,color:'#55d5c9'}; botList=[];
+  for(let i=0;i<7;i++) botList.push({x:.15+Math.random*.68,y:.18+Math.random*.60,r:12,color:['#f0bd54','#ea7474','#8c73dd','#77aee9','#65ca78','#e78bd1','#ef9a54'][i],tx:Math.random(),ty:Math.random(),alive:true,dir:Math.random()*6.28});
+  impostor=Math.random()<.5?0:1; if(impostor===1) player.imposter=true; else botList[0].imposter=true;
+  document.getElementById('role').className='role '+(player.imposter?'imposter':''); document.querySelector('#role span').textContent=player.imposter?'IMPOSTOR':'CREWMATE';
+  tasks=[{x:.135,y:.27,done:false},{x:.57,y:.20,done:false},{x:.835,y:.32,done:false},{x:.22,y:.64,done:false},{x:.61,y:.78,done:false}]; killCooldown=0;won=false;document.getElementById('modal').classList.remove('show');updateHUD();
+}
+reset();
+const down=e=>keys[e.key.toLowerCase()]=true, up=e=>keys[e.key.toLowerCase()]=false;addEventListener('keydown',down);addEventListener('keyup',up);
+// joystick
+let joy=false,jx=0,jy=0; const joyEl=document.getElementById('joystick'),stick=document.getElementById('stick');
+function joyMove(e){const r=joyEl.getBoundingRect?.() || joyEl.getBoundingClientRect(); const p=e.touches?e.touches[0]:e;let dx=p.clientX-(r.left+r.width/2),dy=p.clientY-(r.top+r.height/2);let l=Math.hypot(dx,dy),m=34;if(l>m){dx=dx/l*m;dy=dy/l*m}jx=dx/m;jy=dy/m;stick.style.transform=`translate(${dx}px,${dy}px)`}
+joyEl.addEventListener('pointerdown',e=>{joy=true;joyEl.setPointerCapture(e.pointerId);joyMove(e)});joyEl.addEventListener('pointermove',e=>{if(joy)joyMove(e)});joyEl.addEventListener('pointerup',()=>{joy=false;jx=jy=0;stick.style.transform=''});
+function collision(nx,ny){
+  if(nx<.06||nx>.94||ny<.09||ny>.92)return true;
+  for(const r of walls){if(nx>r.x&&nx<r.x+r.w&&ny>r.y&&ny<r.y+r.h)return true}return false;
+}
+function nearestTask(){let n=null,d=.065; for(const t of tasks){if(!t.done){let q=Math.hypot(t.x-player.x,t.y-player.y);if(q<d){d=q;n=t}}}return n}
+function completeTask(){const t=nearestTask();if(t&&!player.imposter){t.done=true;updateHUD();if(tasks.every(x=>x.done))end(true,'Every task is complete. The crew wins!')}}
+function updateHUD(){let n=tasks.filter(t=>t.done).length;document.getElementById('taskText').textContent=n+' / '+tasks.length;document.getElementById('taskBar').style.width=(n/tasks.length*100)+'%';document.getElementById('taskPrompt').classList.toggle('show',!!nearestTask()&&!player.imposter)}
+document.getElementById('taskBtn').onclick=completeTask;addEventListener('keydown',e=>{if(e.key.toLowerCase()==='e')completeTask();if(e.key.toLowerCase()==='r')report();});
+function report(){let ghost=botList.some(b=>b.dead);if(ghost||keys.report){} end(false,'Emergency meeting called!')}
+document.getElementById('reportBtn').onclick=report;
+document.getElementById('killBtn').onclick=kill;
+function kill(){if(!player.imposter||killCooldown>0)return;let victim=null,ds=.09;for(const b of botList){if(!b.alive)continue;let d=Math.hypot(b.x-player.x,b.y-player.y);if(d<ds){ds=d;victim=b}}if(victim){victim.alive=false;victim.dead=true;killCooldown=12;if(botList.filter(b=>b.alive).length<=1)end(false,'The impostor has taken control!')}}
+function end(win,text){won=true;document.getElementById('modalTitle').textContent=win?'Crew Victory':'Impostor Victory';document.getElementById('modalText').textContent=text;document.getElementById('modal').classList.add('show')}
+document.getElementById('again').onclick=reset;
+let last=performance.now();function loop(now){let dt=Math.min(.032,(now-last)/1000);last=now;if(!won)update(dt);draw(now/1000);requestAnimationFrame(loop)}
+function update(dt){
+ let dx=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0)+jx,dy=(keys.s||keys.arrowdown?1:0)-(keys.w||keys.arrowup?1:0)+jy,l=Math.hypot(dx,dy);if(l>1){dx/=l;dy/=l}let sp=.34;let nx=player.x+dx*sp*dt,ny=player.y+dy*sp*dt;if(!collision(nx,player.y))player.x=nx;if(!collision(player.x,ny))player.y=ny;killCooldown=Math.max(0,killCooldown-dt);document.getElementById('killBtn').disabled=!player.imposter||killCooldown>0;
+ for(const b of botList){if(!b.alive)continue;b.dir+= (Math.random()<.02?(Math.random()-.5)*2:0)*dt;b.x+=Math.cos(b.dir)*.018*dt;b.y+=Math.sin(b.dir)*.018*dt;if(collision(b.x,b.y)){b.dir+=Math.PI*.7+(Math.random()-.5)}}
+ updateHUD();
+}
+function roundRect(c,x,y,w,h,r){c.beginPath();c.roundRect(x,y,w,h,r)}
+function draw(t){
+  ctx.fillStyle='#08131f';ctx.fillRect(0,0,W,H);let ox=(W>700?W*.5:W*.5)-player.x*W,oy=(H>700?H*.5:H*.5)-player.y*H;
+  // subtle grid
+  ctx.strokeStyle='#183042';ctx.lineWidth=1;for(let x=0;x<W;x+=70){ctx.beginPath();ctx.moveTo(x+ox%70,0);ctx.lineTo(x+ox%70,H);ctx.stroke()}for(let y=0;y<H;y+=70){ctx.beginPath();ctx.moveTo(0,y+oy%70);ctx.lineTo(W,y+oy%70);ctx.stroke()}
+  for(const r of rooms){let x=r.x*W+ox,y=r.y*H+oy,w=r.w*W,h=r.h*H;ctx.fillStyle=r.c;ctx.fillRect(x,y,w,h);ctx.strokeStyle='#89abb955';ctx.lineWidth=2;ctx.strokeRect(x+3,y+3,w-6,h-6);ctx.fillStyle='#adc2cd99';ctx.font='600 12px system-ui';ctx.textAlign='left';ctx.fillText(r.name,x+10,y+20)}
+  ctx.fillStyle='#0c1b27';for(const q of walls)ctx.fillRect(q.x*W+ox,q.y*H+oy,q.w*W,q.h*H);
+  // floors details
+  ctx.strokeStyle='#2d4b5a';for(let i=0;i<8;i++){let x=((.33+i*.06)*W+ox)%W,y=(.46*H+oy);ctx.beginPath();ctx.moveTo(x,y-20);ctx.lineTo(x,y+20);ctx.stroke()}
+  for(const task of tasks){let x=task.x*W+ox,y=task.y*H+oy;ctx.fillStyle=task.done?'#42a891':'#d9bd6a';ctx.beginPath();ctx.arc(x,y,task.done?7:9,0,7);ctx.fill();ctx.strokeStyle='#fff7';ctx.stroke();if(!task.done){ctx.fillStyle='#1b2630';ctx.fillRect(x-4,y-4,8,8)}}
+  for(const b of botList){if(!b.alive){let x=b.x*W+ox,y=b.y*H+oy;ctx.fillStyle='#c5d7dd';ctx.fillRect(x-12,y-2,24,5);continue}drawCrew(b.x*W+ox,b.y*H+oy,b.color,b.imposter, t)}
+  drawCrew(player.x*W+ox,player.y*H+oy,player.imposter?'#ff5570':'#55d5c9',player.imposter,t,true);
+  drawMap();
+}
+function drawCrew(x,y,color,imposter,t,main=false){ctx.save();ctx.translate(x,y);ctx.rotate(main?.08*Math.sin(t*5):0);ctx.fillStyle='#06101844';ctx.beginPath();ctx.ellipse(0,15,15,5,0,0,7);ctx.fill();ctx.fillStyle=color;ctx.beginPath();ctx.roundRect(-12,-17,24,32,10);ctx.fill();ctx.fillStyle=imposter?'#e8b3b9':'#aee7ed';ctx.beginPath();ctx.roundRect(-2,-12,15,10,5);ctx.fill();ctx.strokeStyle='#0b1a22';ctx.lineWidth=2;ctx.stroke();ctx.restore()}
+function drawMap(){let cw=300,ch=300;mctx.clearRect(0,0,cw,ch);mctx.fillStyle='#091522';mctx.fillRect(0,0,cw,ch);for(const r of rooms){mctx.fillStyle=r.c;mctx.fillRect(r.x*cw,r.y*ch,r.w*cw,r.h*ch)}mctx.fillStyle='#58ddd3';mctx.beginPath();mctx.arc(player.x*cw,player.y*ch,7,0,7);mctx.fill();for(const b of botList){if(!b.alive)continue;mctx.fillStyle='#ffcf62';mctx.beginPath();mctx.arc(b.x*cw,b.y*ch,4,0,7);mctx.fill()} }
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
